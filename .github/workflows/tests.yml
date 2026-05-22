@@ -1,0 +1,123 @@
+name: Firefly API Automation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Nightly full + fuzz run at 03:17 UTC.
+    - cron: "17 3 * * *"
+
+jobs:
+  test:
+    name: ${{ matrix.suite }} (env=${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: smoke
+            profile: local
+            pytest_args: "-m smoke"
+          - suite: full
+            profile: local
+            pytest_args: "-m 'not load and not schemathesis'"
+          - suite: security
+            profile: local
+            pytest_args: "-m security"
+          - suite: load
+            profile: local
+            pytest_args: "-m load"
+          - suite: fuzz
+            profile: local
+            pytest_args: "-m schemathesis"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        # Test image is linux/arm64; we run on linux/amd64 runners.
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          if [ "${{ matrix.suite }}" = "fuzz" ]; then
+            pip install -e .[fuzz]
+          fi
+
+      - name: Start API container
+        env:
+          FIREFLY_ENV: ${{ matrix.profile }}
+        run: |
+          docker compose up -d api
+          # Wait for spec endpoint
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080/swagger/doc.json -o /dev/null; then
+              echo "API ready"; break
+            fi
+            sleep 2
+          done
+
+      - name: Run ${{ matrix.suite }} suite
+        env:
+          FIREFLY_ENV: ${{ matrix.profile }}
+        run: |
+          mkdir -p reports
+          pytest ${{ matrix.pytest_args }} \
+            --html=reports/report-${{ matrix.suite }}.html \
+            --self-contained-html \
+            --junitxml=reports/junit-${{ matrix.suite }}.xml || true
+
+      - name: Tear down API
+        if: always()
+        run: docker compose down --remove-orphans
+
+      - name: Write GitHub job summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.suite }} (${{ matrix.profile }})"
+            echo ""
+            if [ -f reports/junit-${{ matrix.suite }}.xml ]; then
+              python -c "
+          import xml.etree.ElementTree as ET, sys, pathlib
+          tree = ET.parse('reports/junit-${{ matrix.suite }}.xml')
+          root = tree.getroot()
+          suites = root.findall('testsuite') or [root]
+          tests = sum(int(s.get('tests',0)) for s in suites)
+          failures = sum(int(s.get('failures',0)) for s in suites)
+          errors = sum(int(s.get('errors',0)) for s in suites)
+          skipped = sum(int(s.get('skipped',0)) for s in suites)
+          passed = tests - failures - errors - skipped
+          print(f'| Result | Count |')
+          print(f'| --- | --- |')
+          print(f'| Passed | {passed} |')
+          print(f'| Failed | {failures} |')
+          print(f'| Errored | {errors} |')
+          print(f'| Skipped | {skipped} |')
+          print(f'| Total | {tests} |')
+          "
+            fi
+            echo ""
+            echo "_Failures in the default run are intentional product defects; see BUGS.md._"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefly-${{ matrix.suite }}-reports
+          path: |
+            reports/
+            BUGS.md
+            EXECUTIVE_SUMMARY.md

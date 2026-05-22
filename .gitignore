@@ -1,0 +1,11 @@
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.egg-info/
+.mypy_cache/
+reports/*
+!reports/.gitkeep
+.env
+.claude/
+.DS_Store
+docs/source/

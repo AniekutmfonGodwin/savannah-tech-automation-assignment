@@ -1,0 +1,55 @@
+== Docker image metadata ==
+image=sha256:ac316eef042eb59f37428f11c2ed2397433011f3d8a55c2031b96efb1348318c created=2024-11-25T22:03:35.194486584Z os=linux arch=arm64 workdir=/app cmd=["./main"] exposed={"8080/tcp":{}}
+
+== /app contents ==
+total 25904
+drwxr-xr-x    2 root     root          4096 Nov 25  2024 .
+drwxr-xr-x    1 root     root          4096 May 21 12:31 ..
+-rwxr-xr-x    1 root     root      26514584 Nov 25  2024 main
+
+== Embedded source paths ==
+/app/controller/assets.go
+/app/controller/controller.go
+/app/controller/integrations.go
+/app/docs/docs.go
+/app/main.go
+
+== Controller symbols ==
+testing-api/controller.(*Controller).CreateAsset
+testing-api/controller.(*Controller).CreateAsset-fm
+testing-api/controller.(*Controller).CreateIntegration
+testing-api/controller.(*Controller).CreateIntegration-fm
+testing-api/controller.(*Controller).DeleteAsset
+testing-api/controller.(*Controller).DeleteAsset-fm
+testing-api/controller.(*Controller).DeleteIntegration
+testing-api/controller.(*Controller).DeleteIntegration-fm
+testing-api/controller.(*Controller).GenUUID
+testing-api/controller.(*Controller).GetAsset
+testing-api/controller.(*Controller).GetAsset-fm
+testing-api/controller.(*Controller).GetIntegration
+testing-api/controller.(*Controller).GetIntegration-fm
+testing-api/controller.(*Controller).ListAssets
+testing-api/controller.(*Controller).ListAssets-fm
+testing-api/controller.(*Controller).ListIntegrations
+testing-api/controller.(*Controller).ListIntegrations-fm
+testing-api/controller.(*Controller).UpdateAsset
+testing-api/controller.(*Controller).UpdateAsset-fm
+testing-api/controller.(*Controller).UpdateIntegration
+testing-api/controller.(*Controller).UpdateIntegration-fm
+
+== Datastore type hints ==
+*map[string]*model.Asset
+*map[string]*model.Integration
+
+== Request/model tags and domain errors ==
+Authorization Required
+User can not be empty
+asset not found
+integration not found
+internal server error
+json:"description"
+json:"id"
+json:"integration_id"
+json:"name"
+json:"tenant_id"
+json:"type"

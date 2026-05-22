@@ -1,0 +1,20 @@
+# Production profile — destructive markers are excluded by default.
+# Tests tagged @pytest.mark.requires_env("local") or .destructive are skipped here.
+name: prod
+base_url: https://api.example.firefly.local
+api_base_path: /api/v1
+spec_path: /swagger/doc.json
+request_timeout_seconds: 15
+read_only: true
+
+load:
+  requests_per_minute: 200
+  duration_seconds: 30
+
+users:
+  test1:
+    username_env: FIREFLY_PROD_TEST1_USERNAME
+    password_env: FIREFLY_PROD_TEST1_PASSWORD
+  test2:
+    username_env: FIREFLY_PROD_TEST2_USERNAME
+    password_env: FIREFLY_PROD_TEST2_PASSWORD

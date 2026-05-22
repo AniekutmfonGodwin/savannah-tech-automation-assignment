@@ -1,0 +1,17 @@
+name: staging
+base_url: https://staging.api.example.firefly.local
+api_base_path: /api/v1
+spec_path: /swagger/doc.json
+request_timeout_seconds: 10
+
+load:
+  requests_per_minute: 800
+  duration_seconds: 60
+
+users:
+  test1:
+    username_env: FIREFLY_STG_TEST1_USERNAME
+    password_env: FIREFLY_STG_TEST1_PASSWORD
+  test2:
+    username_env: FIREFLY_STG_TEST2_USERNAME
+    password_env: FIREFLY_STG_TEST2_PASSWORD

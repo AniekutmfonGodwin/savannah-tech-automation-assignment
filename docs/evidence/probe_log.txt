@@ -1,0 +1,277 @@
+Phase 1 probe evidence — 2026-05-21T13:52:59Z
+API: http://localhost:8080
+================================================================
+
+# Phase 1a — Auth / Identity probes
+
+[1a.1] Authorization: Basic <base64(:test123)> — empty username
+HTTP 401
+Body: 
+
+[1a.2] Authorization: Basic <base64(test1:)> — empty password
+HTTP 401
+Body: 
+
+[1a.3] Authorization: Basic notbase64 — malformed
+HTTP 401
+Body: 
+
+[1a.4] Authorization: Basic <base64(test1)> — no colon
+HTTP 401
+Body: 
+
+[1a.5] base64(TEST1:test123) — uppercase username
+HTTP 401
+Body: 
+
+[1a.6] Authorization: Bearer foo
+HTTP 401
+Body: 
+
+[1a.7] base64(test1:test456) — user/password mismatch
+HTTP 401
+Body: 
+
+[1a.8] GET /swagger/doc.json with no auth
+HTTP 200
+Body (first 120): {
+    "schemes": [],
+    "swagger": "2.0",
+    "info": {
+        "description": "A test API with intentional bugs for QA
+
+[1a.9] WWW-Authenticate header on 401
+Www-Authenticate: Basic realm="Authorization Required"
+
+# Phase 1b — Tenant isolation deep probes
+
+[setup] Create integration & asset for both tenants
+test1 integration: 4dd12a5b-82a6-4478-b148-db1a84009ba5
+  full: {"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"}
+test2 integration: 8c484d0b-c955-49e4-a121-5adba1f2952d
+  full: {"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2"}
+test1 asset: 522d5fb8-30fd-4c70-aa82-8a0982824b7a
+  full: {"id":"522d5fb8-30fd-4c70-aa82-8a0982824b7a","name":"probe-t1-asset","description":"t1","tenant_id":"test1","integration_id":"4dd12a5b-82a6-4478-b148-db1a84009ba5"}
+test2 asset: d8e865e4-ae6c-43a8-b191-d3d37bfdb0e7
+  full: {"id":"d8e865e4-ae6c-43a8-b191-d3d37bfdb0e7","name":"probe-t2-asset","description":"t2","tenant_id":"test2","integration_id":"8c484d0b-c955-49e4-a121-5adba1f2952d"}
+
+[1b.1] test2 GETs /assets?integrationId=<test1's>
+HTTP 200
+Body: [{"id":"d8e865e4-ae6c-43a8-b191-d3d37bfdb0e7","name":"probe-t2-asset","description":"t2","tenant_id":"test2","integration_id":"8c484d0b-c955-49e4-a121-5adba1f2952d"}]
+
+[1b.2] test2 PATCHes test1's asset
+HTTP 200
+Body: {"id":"522d5fb8-30fd-4c70-aa82-8a0982824b7a","name":"owned-by-t2","description":"t2 wrote this","tenant_id":"test1","integration_id":"4dd12a5b-82a6-4478-b148-db1a84009ba5"}
+[1b.2.verify] test1 GETs the asset
+{
+    "id": "522d5fb8-30fd-4c70-aa82-8a0982824b7a",
+    "name": "owned-by-t2",
+    "description": "t2 wrote this",
+    "tenant_id": "test1",
+    "integration_id": "4dd12a5b-82a6-4478-b148-db1a84009ba5"
+}
+
+[1b.3] test2 DELETEs test1's asset
+HTTP 204
+Body: 
+[1b.3.verify] test1 GETs the asset (should still exist)
+HTTP 404
+Body: {"error":"asset not found"}
+
+[1b.4] test2 PUTs test1's integration
+HTTP 200
+Body: {"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"}
+[1b.4.verify] test1 GETs integration
+{
+    "id": "4dd12a5b-82a6-4478-b148-db1a84009ba5",
+    "name": "probe-t1-int",
+    "type": "aws",
+    "tenant_id": "test1"
+}
+
+[1b.5] tenant_id field in responses
+  test1 GET own integration:
+{"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"}
+  test1 GET test2's integration (cross-tenant read leak):
+{"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2"}
+
+[1b.6] User enumeration: 404 vs 200 differential
+  test1 GET random nonexistent id:
+HTTP 404
+  Body: {"error":"integration not found"}
+  test1 GET test2's id (currently leaks):
+HTTP 200
+  Body: {"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2"}
+
+# Phase 1c — Input validation probes
+
+[1c.1] POST /integrations name=''
+HTTP 500
+Body: {"error":"internal server error"}
+
+[1c.2] POST /integrations name=10000 chars
+HTTP 201
+Body length:    10088
+
+[1c.3] POST /integrations type='fictional-cloud'
+HTTP 201
+Body: {"id":"1591c85f-ca8f-4501-8811-1ccfc331f55c","name":"unknown-type","type":"fictional-cloud","tenant_id":"test1"}
+
+[1c.4] POST /integrations with extra fields
+HTTP 201
+Body: {"id":"d4d41503-446a-4952-8def-75c5cd951348","name":"extras","type":"aws","tenant_id":"test1"}
+
+[1c.5] POST /integrations with broken JSON
+HTTP 400
+Body: {"error":"unexpected EOF"}
+
+[1c.6] POST /integrations with Content-Type: text/plain
+HTTP 201
+Body: {"id":"e6d938dd-8a01-4168-a20d-d79ae48123e4","name":"plain","type":"aws","tenant_id":"test1"}
+
+[1c.7] PATCH /assets with id only (name/desc should be preserved?)
+  before:
+{"id":"d8e865e4-ae6c-43a8-b191-d3d37bfdb0e7","name":"probe-t2-asset","description":"t2","tenant_id":"test2","integration_id":"8c484d0b-c955-49e4-a121-5adba1f2952d"}
+HTTP 200
+Body: {"id":"d8e865e4-ae6c-43a8-b191-d3d37bfdb0e7","name":"probe-t2-asset","description":"t2","tenant_id":"test2","integration_id":"8c484d0b-c955-49e4-a121-5adba1f2952d"}
+  after GET:
+{"id":"d8e865e4-ae6c-43a8-b191-d3d37bfdb0e7","name":"probe-t2-asset","description":"t2","tenant_id":"test2","integration_id":"8c484d0b-c955-49e4-a121-5adba1f2952d"}
+
+[1c.8] PATCH /assets with nonexistent id
+HTTP 500
+Body: {"error":"internal server error"}
+
+[1c.9] PUT /integrations/<A> with body.id=<B>
+HTTP 200
+Body: {"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2"}
+
+[1c.10] PUT /integrations/<id> with tenant_id override
+HTTP 200
+Body: {"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"}
+  after GET:
+{"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"}
+
+# Phase 1d — HTTP semantics probes
+[1d.1] OPTIONS /integrations
+HTTP 404
+Headers:
+  (none)
+
+[1d.2] HEAD /integrations
+
+[1d.3] POST /integrations/<id> (should be 405)
+HTTP 404
+Body: 404 page not found
+
+[1d.4] PATCH /integrations/<id>
+HTTP 404
+Body: 404 page not found
+
+[1d.5] GET /integrations/ (trailing slash)
+HTTP 301
+Body: <a href="/api/v1/integrations">Moved Permanently</a>.
+
+[1d.6] Response Content-Type for /integrations
+Content-Type: application/json; charset=utf-8
+
+# Phase 1e — Pagination edges
+
+[1e.page=0] GET /integrations?page=0
+HTTP 500
+Body length:        0; preview: 
+
+[1e.page=-1] GET /integrations?page=-1
+HTTP 500
+Body length:        0; preview: 
+
+[1e.limit=0] GET /integrations?limit=0
+HTTP 200
+Body length:        2; preview: []
+
+[1e.limit=999999] GET /integrations?limit=999999
+HTTP 200
+Body length:    10594; preview: [{"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"},{"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2
+
+[1e.page=abc] GET /integrations?page=abc
+HTTP 500
+Body length:       33; preview: {"error":"internal server error"}
+
+[1e.limit=abc] GET /integrations?limit=abc
+HTTP 500
+Body length:       33; preview: {"error":"internal server error"}
+
+[1e.empty] GET /integrations?
+HTTP 200
+Body length:    10594; preview: [{"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"},{"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2
+
+# Phase 1f — Concurrency / idempotency
+
+[1f.1] Concurrent POST /integrations with same name
+HTTP 404timeout
+
+[1d.3] POST /integrations/<id> (should be 405)
+HTTP 404
+Body: 404 page not found
+
+[1d.4] PATCH /integrations/<id>
+HTTP 404
+Body: 404 page not found
+
+[1d.5] GET /integrations/ (trailing slash)
+HTTP 301
+Body: <a href="/api/v1/integrations">Moved Permanently</a>.
+
+[1d.6] Content-Type response header
+Content-Type: application/json; charset=utf-8
+
+# Phase 1e — Pagination edges
+
+[1e:page=0] GET /integrations?page=0
+HTTP 500
+Body: 
+
+[1e:page=-1] GET /integrations?page=-1
+HTTP 500
+Body: 
+
+[1e:limit=0] GET /integrations?limit=0
+HTTP 200
+Body: []
+
+[1e:limit=999999] GET /integrations?limit=999999
+HTTP 200
+Body: [{"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"},{"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2
+
+[1e:page=abc] GET /integrations?page=abc
+HTTP 500
+Body: {"error":"internal server error"}
+
+[1e:limit=abc] GET /integrations?limit=abc
+HTTP 500
+Body: {"error":"internal server error"}
+
+[1e:missing] GET /integrations with no params
+HTTP 200
+Body length:    10594
+Preview: [{"id":"4dd12a5b-82a6-4478-b148-db1a84009ba5","name":"probe-t1-int","type":"aws","tenant_id":"test1"},{"id":"8c484d0b-c955-49e4-a121-5adba1f2952d","name":"probe-t2-int","type":"gcp","tenant_id":"test2
+
+# Phase 1f — Concurrency / idempotency
+[1f.1] Concurrent POST /integrations with same name
+  result A: 
+  result B: 
+
+[1f.2] Double DELETE — idempotency check
+  first delete:
+HTTP 404
+  Body: 404 page not found
+  second delete:
+HTTP 404
+  Body: 404 page not found
+
+# Phase 1g — Security smoke
+[1g.1] Path traversal /integrations/../../../etc/passwd
+HTTP 404
+Body: 404 page not found
+
+[1g.2] 500 response body content
+{"error":"internal server error"}

@@ -1,0 +1,24 @@
+# Local environment profile.
+# Profiles answer the JD's stated #1 gap: a single test codebase that runs across
+# dev/staging/prod and across cloud providers without duplication or hardcoding.
+#
+# Layering: defaults (Python) < this profile < FIREFLY_* env vars < pytest --env CLI.
+# Secrets are NEVER stored here — only references to env-var names.
+
+name: local
+base_url: http://localhost:8080
+api_base_path: /api/v1
+spec_path: /swagger/doc.json
+request_timeout_seconds: 10
+
+load:
+  requests_per_minute: 1000
+  duration_seconds: 60
+
+users:
+  test1:
+    username: test1
+    password_env: FIREFLY_TEST1_PASSWORD  # value resolved from env at runtime
+  test2:
+    username: test2
+    password_env: FIREFLY_TEST2_PASSWORD

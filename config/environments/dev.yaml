@@ -1,0 +1,17 @@
+name: dev
+base_url: https://dev.api.example.firefly.local
+api_base_path: /api/v1
+spec_path: /swagger/doc.json
+request_timeout_seconds: 10
+
+load:
+  requests_per_minute: 600
+  duration_seconds: 30
+
+users:
+  test1:
+    username_env: FIREFLY_DEV_TEST1_USERNAME
+    password_env: FIREFLY_DEV_TEST1_PASSWORD
+  test2:
+    username_env: FIREFLY_DEV_TEST2_USERNAME
+    password_env: FIREFLY_DEV_TEST2_PASSWORD

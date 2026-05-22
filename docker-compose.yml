@@ -1,0 +1,24 @@
+services:
+  api:
+    image: ${API_IMAGE:-infralightio/test-integration-api@sha256:c4766563ad1c47e242af1cef69644bf8dd6a22d34e6c27e96a15560368586705}
+    ports:
+      - "${API_PORT:-8080}:8080"
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    depends_on:
+      - api
+    environment:
+      FIREFLY_ENV: ${FIREFLY_ENV:-local}
+      FIREFLY_BASE_URL: http://api:8080
+      FIREFLY_TEST1_USERNAME: ${FIREFLY_TEST1_USERNAME:-test1}
+      FIREFLY_TEST1_PASSWORD: ${FIREFLY_TEST1_PASSWORD:-test123}
+      FIREFLY_TEST2_USERNAME: ${FIREFLY_TEST2_USERNAME:-test2}
+      FIREFLY_TEST2_PASSWORD: ${FIREFLY_TEST2_PASSWORD:-test456}
+      FIREFLY_REQUEST_TIMEOUT_SECONDS: ${FIREFLY_REQUEST_TIMEOUT_SECONDS:-10}
+      FIREFLY_LOAD_RPM: ${FIREFLY_LOAD_RPM:-1000}
+      FIREFLY_LOAD_DURATION_SECONDS: ${FIREFLY_LOAD_DURATION_SECONDS:-60}
+    volumes:
+      - ./reports:/workspace/reports
